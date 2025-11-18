@@ -43,6 +43,8 @@ export interface Order {
   amount: number;
   reference: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  isExternal?: boolean;
+  callbackUrl?: string;
 }
 
 export const orderSchema = z.object({
@@ -53,4 +55,10 @@ export const orderSchema = z.object({
   paymentNetwork: z.string().min(1),
 });
 
+export const externalPaymentSchema = z.object({
+  amount: z.number().positive(),
+  actual_final_callback: z.string().url(),
+});
+
 export type InsertOrder = z.infer<typeof orderSchema>;
+export type ExternalPayment = z.infer<typeof externalPaymentSchema>;

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { orderSchema } from "@shared/schema";
+import { orderSchema, externalPaymentSchema } from "@shared/schema";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 
@@ -39,9 +39,89 @@ const PACKAGES: Record<
   "pkg-28": { id: "pkg-28", price: 80, dataAmount: "20GB" },
   "pkg-29": { id: "pkg-29", price: 30, dataAmount: "1 Chekcer" },
   "pkg-30": { id: "pkg-30", price: 30, dataAmount: "1 Chekcer" },
+  "pkg-external": { id: "pkg-external", price: 0, dataAmount: "External" },
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // External payment endpoint
+  app.post("/external", async (req, res) => {
+    try {
+      const { amount, actual_final_callback } = externalPaymentSchema.parse(req.body);
+
+      const uniqueReference = `ref-${Date.now()}-${nanoid()}`;
+
+      const order = await storage.createOrder({
+        serviceId: "mtn",
+        packageId: "pkg-external",
+        recipientNumber: "0000000000",
+        paymentNumber: "0000000000",
+        paymentNetwork: "MTN",
+        amount: amount,
+        reference: uniqueReference,
+        isExternal: true,
+        callbackUrl: actual_final_callback,
+      });
+
+      const domain = process.env.REPLIT_DEV_DOMAIN || "localhost:5000";
+      const callbackUrl = `https://${domain}/success`;
+
+      const paystackResponse = await fetch(
+        "https://api.paystack.co/transaction/initialize",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: `external${order.id}@budgetbundles.com`,
+            amount: Math.round(amount * 1.02 * 100),
+            reference: uniqueReference,
+            currency: "GHS",
+            callback_url: callbackUrl,
+            metadata: {
+              orderId: order.id,
+              serviceId: "mtn",
+              packageId: "pkg-external",
+              recipientNumber: "0000000000",
+              dataAmount: amount.toString(),
+            },
+          }),
+        },
+      );
+
+      const paystackData = await paystackResponse.json();
+
+      console.log(
+        "External payment Paystack initialization response:",
+        JSON.stringify(paystackData),
+      );
+
+      if (!paystackData.status) {
+        console.error("External payment Paystack initialization failed:", paystackData);
+        return res.status(400).json({
+          error: paystackData.message || "Payment initialization failed",
+        });
+      }
+
+      res.json({
+        status: "success",
+        orderId: order.id,
+        authorizationUrl: paystackData.data.authorization_url,
+        accessCode: paystackData.data.access_code,
+        reference: paystackData.data.reference,
+      });
+    } catch (error) {
+      console.error("External payment initialization error:", error);
+      if (error instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ error: "Invalid request data", details: error.errors });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Initialize Paystack payment
   app.post("/api/payment/initialize", async (req, res) => {
     try {
@@ -145,11 +225,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data } = paystackData;
       console.log("Paystack verification data:", JSON.stringify(data));
 
-      // Update order status
-      if (data.status === "success") {
-        await storage.updateOrderStatus(data.reference, "completed");
+      const order = await storage.getOrderByReference(data.reference);
 
-        // Send purchase details to webhook
+      const finalStatus = data.status === "success" ? "completed" : "failed";
+      await storage.updateOrderStatus(data.reference, finalStatus);
+
+      if (order?.isExternal && order.callbackUrl) {
+        const externalCallbackPayload = {
+          status: data.status,
+          reference: data.reference,
+          amount: data.amount / 100,
+          currency: data.currency,
+          transactionDate: data.transaction_date,
+          channel: data.channel,
+        };
+
+        console.log("Sending to external callback:", externalCallbackPayload);
+
+        try {
+          const externalCallbackRes = await fetch(order.callbackUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(externalCallbackPayload),
+          });
+          console.log(
+            "External callback response:",
+            externalCallbackRes.status,
+            await externalCallbackRes.text(),
+          );
+        } catch (externalCallbackError) {
+          console.error("External callback error:", externalCallbackError);
+        }
+      } else if (data.status === "success") {
         const webhookPayload = {
           reference: data.reference,
           amount: data.amount / 100,
@@ -185,8 +294,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (webhookError) {
           console.error("Webhook notification error:", webhookError);
         }
-      } else {
-        await storage.updateOrderStatus(data.reference, "failed");
       }
 
       res.json({

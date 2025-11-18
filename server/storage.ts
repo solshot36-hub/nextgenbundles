@@ -13,9 +13,10 @@ export interface IStorage {
 
   // Order methods
   createOrder(
-    order: InsertOrder & { amount: number; reference: string },
+    order: InsertOrder & { amount: number; reference: string; isExternal?: boolean; callbackUrl?: string },
   ): Promise<Order>;
   getOrder(id: string): Promise<Order | undefined>;
+  getOrderByReference(reference: string): Promise<Order | undefined>;
   updateOrderStatus(
     reference: string,
     status: Order["status"],
@@ -49,7 +50,7 @@ export class MemStorage implements IStorage {
   }
 
   async createOrder(
-    insertOrder: InsertOrder & { amount: number; reference: string },
+    insertOrder: InsertOrder & { amount: number; reference: string; isExternal?: boolean; callbackUrl?: string },
   ): Promise<Order> {
     const id = `${Date.now()}-${nanoid(10)}`;
     const order: Order = {
@@ -57,6 +58,8 @@ export class MemStorage implements IStorage {
       id,
       status: "pending",
       reference: insertOrder.reference,
+      isExternal: insertOrder.isExternal,
+      callbackUrl: insertOrder.callbackUrl,
     };
     this.orders.set(id, order);
     return order;
@@ -64,6 +67,12 @@ export class MemStorage implements IStorage {
 
   async getOrder(id: string): Promise<Order | undefined> {
     return this.orders.get(id);
+  }
+
+  async getOrderByReference(reference: string): Promise<Order | undefined> {
+    return Array.from(this.orders.values()).find(
+      (o) => o.reference === reference,
+    );
   }
 
   async updateOrderStatus(
