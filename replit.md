@@ -35,7 +35,7 @@ Budget Bundles is a web application for purchasing affordable data bundles for v
 ## Recent Changes (November 18, 2025)
 - ✅ **External Payment Endpoint**: Added /external endpoint for triggering payments from external websites
   - POST /external receives amount and actual_final_callback URL
-  - Creates orders using dedicated pkg-external package for MTN service
+  - Creates orders using dedicated pkg-35 package for MTN service
   - Uses same Paystack initialization flow as on-site purchases (no difference from Paystack's perspective)
   - Stores external callback URL and marks orders as external
   - Payment verification endpoint detects external orders and sends callbacks for both success AND failed statuses
@@ -151,7 +151,7 @@ Content-Type: application/json
 ```
 
 **Notes:**
-- External orders use the dedicated `pkg-external` package for tracking
+- External orders use the dedicated `pkg-35` package for tracking
 - The 2% Paystack fee is automatically applied
 - Callbacks are sent for both successful and failed payments
 - External orders appear in the same success page as regular orders

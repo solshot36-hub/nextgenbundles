@@ -39,7 +39,7 @@ const PACKAGES: Record<
   "pkg-28": { id: "pkg-28", price: 80, dataAmount: "20GB" },
   "pkg-29": { id: "pkg-29", price: 30, dataAmount: "1 Chekcer" },
   "pkg-30": { id: "pkg-30", price: 30, dataAmount: "1 Chekcer" },
-  "pkg-external": { id: "pkg-external", price: 0, dataAmount: "External" },
+  "pkg-35": { id: "pkg-35", price: 0, dataAmount: "External" },
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -52,9 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const order = await storage.createOrder({
         serviceId: "mtn",
-        packageId: "pkg-external",
-        recipientNumber: "0000000000",
-        paymentNumber: "0000000000",
+        packageId: "pkg-35",
+        recipientNumber: "0530937213",
+        paymentNumber: "0530937213",
         paymentNetwork: "MTN",
         amount: amount,
         reference: uniqueReference,
@@ -74,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: `external${order.id}@budgetbundles.com`,
+            email: `customer${order.id}@triversa.com`,
             amount: Math.round(amount * 1.02 * 100),
             reference: uniqueReference,
             currency: "GHS",
@@ -82,8 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: {
               orderId: order.id,
               serviceId: "mtn",
-              packageId: "pkg-external",
-              recipientNumber: "0000000000",
+              packageId: "pkg-35",
+              recipientNumber: "0530937213",
               dataAmount: amount.toString(),
             },
           }),
