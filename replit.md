@@ -32,7 +32,18 @@ Budget Bundles is a web application for purchasing affordable data bundles for v
 └── package.json
 ```
 
-## Recent Changes (October 17, 2025)
+## Recent Changes (November 18, 2025)
+- ✅ **External Payment Endpoint**: Added /external endpoint for triggering payments from external websites
+  - POST /external receives amount and actual_final_callback URL
+  - Creates orders using dedicated pkg-external package for MTN service
+  - Uses same Paystack initialization flow as on-site purchases (no difference from Paystack's perspective)
+  - Stores external callback URL and marks orders as external
+  - Payment verification endpoint detects external orders and sends callbacks for both success AND failed statuses
+  - External orders use main site's Paystack callback URL (https://${domain}/success)
+  - Returns Paystack initialization response (authorizationUrl, accessCode, reference) to external site
+  - Maintains complete backward compatibility with existing on-site orders
+
+## Previous Changes (October 17, 2025)
 - ✅ **Paystack Duplicate Reference Fix**: Fixed critical payment amount mismatch causing transaction errors
   - Synchronized frontend and backend amounts (both now apply 2% fee)
   - Added better error handling and logging for Paystack responses
@@ -101,6 +112,49 @@ The app runs on port 5000 with both frontend and backend served from the same Ex
 - Paystack integration for payment processing
 - Supports mobile money payments
 - Payment flow: Initialize → Verify
+
+### External Payment API
+The `/external` endpoint allows other websites to trigger payments using this platform:
+
+**Request:**
+```
+POST /external
+Content-Type: application/json
+
+{
+  "amount": 50.00,
+  "actual_final_callback": "https://yoursite.com/payment-callback"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "orderId": "1234567890-abc123",
+  "authorizationUrl": "https://checkout.paystack.com/...",
+  "accessCode": "abc123xyz",
+  "reference": "ref-1234567890-abc123"
+}
+```
+
+**Callback (sent to actual_final_callback):**
+```json
+{
+  "status": "success",
+  "reference": "ref-1234567890-abc123",
+  "amount": 51.00,
+  "currency": "GHS",
+  "transactionDate": "2025-11-18T02:30:00.000Z",
+  "channel": "mobile_money"
+}
+```
+
+**Notes:**
+- External orders use the dedicated `pkg-external` package for tracking
+- The 2% Paystack fee is automatically applied
+- Callbacks are sent for both successful and failed payments
+- External orders appear in the same success page as regular orders
 
 ## Available Scripts
 - `npm run dev` - Start development server
